@@ -6,7 +6,7 @@
 
   "browser_specific_settings": {
     "gecko": {
-      "id": "download-auto-resume@kiroshen.github.io",
+      "id": "download-auto-resume@kiroshennaidu.github.io",
       "strict_min_version": "115.0",
       "data_collection_permissions": {
         "required": ["none"]

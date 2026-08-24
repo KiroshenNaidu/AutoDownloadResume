@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "Download Auto-Resume",
+  "version": "2.0",
+  "description": "Instantly resumes interrupted downloads, waits quietly while you're offline, and restarts downloads that cannot be resumed.",
+
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "download-auto-resume@kiroshen.github.io",
+      "strict_min_version": "115.0",
+      "data_collection_permissions": {
+        "required": ["none"]
+      }
+    }
+  },
+
+  "permissions": [
+    "downloads",
+    "storage",
+    "alarms",
+    "notifications",
+    "captivePortal"
+  ],
+
+  "background": {
+    "scripts": ["background.js"]
+  }
+}

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Download Auto-Resume",
-  "version": "2.0",
+  "version": "2.1.1",
   "description": "Instantly resumes interrupted downloads, waits quietly while you're offline, and restarts downloads that cannot be resumed.",
 
   "browser_specific_settings": {
@@ -23,6 +23,10 @@
   ],
 
   "background": {
-    "scripts": ["background.js"]
+    "scripts": ["settings.js", "background.js"]
+  },
+
+  "options_ui": {
+    "page": "options.html"
   }
 }

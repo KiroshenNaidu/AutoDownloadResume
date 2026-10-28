@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Download Auto-Resume settings</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <!--
+    Each setting's input has an id that matches its name in settings.js,
+    e.g. id="MAX_ATTEMPTS". options.js uses that to fill and read the form.
+    The "hint" lines (default + allowed range) are filled in by options.js
+    from settings.js, so the numbers only live in one place.
+  -->
+  <form id="settings-form" novalidate>
+
+    <section>
+      <h2>Retrying</h2>
+
+      <div class="row">
+        <label for="FIRST_RETRY_SECONDS">Wait before the first retry</label>
+        <div class="control"><input type="number" id="FIRST_RETRY_SECONDS"> seconds</div>
+        <p class="hint" data-for="FIRST_RETRY_SECONDS"></p>
+      </div>
+
+      <div class="row">
+        <label for="BACKOFF_MULTIPLIER">Make each retry wait longer by</label>
+        <div class="control">× <input type="number" id="BACKOFF_MULTIPLIER"></div>
+        <p class="hint" data-for="BACKOFF_MULTIPLIER">
+          2 means 1s, 2s, 4s, 8s… 1 means always the same wait.
+        </p>
+      </div>
+
+      <div class="row">
+        <label for="MAX_RETRY_DELAY_SECONDS">Never wait longer than</label>
+        <div class="control"><input type="number" id="MAX_RETRY_DELAY_SECONDS"> seconds</div>
+        <p class="hint" data-for="MAX_RETRY_DELAY_SECONDS"></p>
+      </div>
+
+      <div class="row">
+        <label for="MAX_ATTEMPTS">Give up after</label>
+        <div class="control"><input type="number" id="MAX_ATTEMPTS"> failures in a row</div>
+        <p class="hint" data-for="MAX_ATTEMPTS">
+          Only failures while you're online count. The count resets whenever the
+          download makes progress.
+        </p>
+      </div>
+    </section>
+
+    <section>
+      <h2>Downloads that can't be resumed</h2>
+      <p class="intro">
+        Some servers don't allow picking up where a download left off. The only
+        option then is to start again from 0 bytes.
+      </p>
+
+      <div class="row check">
+        <label><input type="checkbox" id="RESTART_WHEN_CANNOT_RESUME">
+          Restart them from the beginning</label>
+      </div>
+
+      <div class="row">
+        <label for="MAX_RESTARTS">Restart the same file at most</label>
+        <div class="control"><input type="number" id="MAX_RESTARTS"> times</div>
+        <p class="hint" data-for="MAX_RESTARTS"></p>
+      </div>
+
+      <div class="row">
+        <label for="MAX_RESTART_SIZE_MB">Don't restart files bigger than</label>
+        <div class="control"><input type="number" id="MAX_RESTART_SIZE_MB"> MB</div>
+        <p class="hint" data-for="MAX_RESTART_SIZE_MB">
+          0 means no limit. A restarted 20 GB file re-downloads all 20 GB.
+        </p>
+      </div>
+    </section>
+
+    <section>
+      <h2>When it gives up</h2>
+
+      <div class="row check">
+        <label><input type="checkbox" id="CANCEL_WHEN_GIVING_UP">
+          Cancel the download</label>
+        <p class="hint">Untick to leave it in the list so you can retry it by hand.</p>
+      </div>
+
+      <div class="row check">
+        <label><input type="checkbox" id="SHOW_NOTIFICATIONS">
+          Show desktop notifications</label>
+        <p class="hint">When it gives up, or when a download needs your attention.</p>
+      </div>
+    </section>
+
+    <details>
+      <summary>Advanced</summary>
+      <p class="intro">You probably don't need to change these.</p>
+
+      <div class="row check">
+        <label><input type="checkbox" id="ASSUME_USER_CANCELED_IS_REAL">
+          If unsure whether I cancelled a download, assume I did</label>
+        <p class="hint">
+          Firefox sometimes reports a dropped connection as "cancelled by you".
+          When the extension can't tell which it was, ticked means it leaves the
+          download alone (safe). Unticked means it retries it — but it will then
+          also retry downloads you really did cancel.
+        </p>
+      </div>
+
+      <div class="row">
+        <label for="OFFLINE_GRACE_SECONDS">Blame the connection if it was down in the last</label>
+        <div class="control"><input type="number" id="OFFLINE_GRACE_SECONDS"> seconds</div>
+        <p class="hint" data-for="OFFLINE_GRACE_SECONDS">
+          A download that is "cancelled" this soon after your connection dropped
+          is treated as a network failure and retried.
+        </p>
+      </div>
+
+      <div class="row check">
+        <label><input type="checkbox" id="RESUME_NETWORK_PAUSES">
+          Resume downloads Firefox paused because of the network</label>
+        <p class="hint">Downloads you pause yourself while online are always left alone.</p>
+      </div>
+
+      <div class="row">
+        <label for="CHECK_EVERY_MINUTES">Check on stopped downloads every</label>
+        <div class="control"><input type="number" id="CHECK_EVERY_MINUTES"> minutes</div>
+        <p class="hint" data-for="CHECK_EVERY_MINUTES">
+          Firefox puts the extension to sleep when idle; this check is what wakes
+          it. Retries waiting longer than about 25 seconds happen on this check,
+          so a bigger number here can make them later.
+        </p>
+      </div>
+
+      <div class="row">
+        <label for="RESTART_CONFLICT_ACTION">If a restarted file's name is already taken</label>
+        <div class="control">
+          <select id="RESTART_CONFLICT_ACTION">
+            <option value="uniquify">Save as a new name, e.g. file(1).zip</option>
+            <option value="overwrite">Replace the existing file</option>
+          </select>
+        </div>
+        <p class="hint warning">"Replace" deletes the existing file with that name.</p>
+      </div>
+    </details>
+
+    <div class="buttons">
+      <button type="submit" id="save" class="primary">Save</button>
+      <button type="button" id="restore">Restore defaults</button>
+      <span id="status" role="status" aria-live="polite"></span>
+    </div>
+  </form>
+
+  <script src="settings.js"></script>
+  <script src="options.js"></script>
+</body>
+</html>

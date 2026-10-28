@@ -1,78 +1,13 @@
 /* ============================================================
-   SETTINGS — these are the only lines you need to change.
+   SETTINGS live in settings.js (defaults) and on the Options tab
+   (about:addons → Download Auto-Resume → Options).
+
+   This file reads them through the `settings` object below, e.g.
+   settings.MAX_ATTEMPTS. You shouldn't need to change anything here.
    ============================================================ */
 
-// How long to wait before the FIRST retry after a download breaks, in seconds.
-const FIRST_RETRY_SECONDS = 1;
-
-// Each further failure waits this many times longer than the last.
-// 2 gives: 1s, 2s, 4s, 8s, 16s, 32s, 60s, 60s...
-// Set this to 1 if you want every retry to be FIRST_RETRY_SECONDS apart.
-const BACKOFF_MULTIPLIER = 2;
-
-// The waiting time never grows past this, in seconds.
-const MAX_RETRY_DELAY_SECONDS = 60;
-
-// How many failures IN A ROW *while we believe you are online* before giving up.
-// Failures that happen while offline are NOT counted.
-const MAX_ATTEMPTS = 30;
-
-/* ---- telling "the network died" apart from "you cancelled it" ----
-
-   Firefox reports the error "USER_CANCELED" for BOTH of these. There is no
-   field that separates them, so we go by timing instead: if the connection
-   dropped recently, we blame the network.                                    */
-
-// If the connection was down within this many seconds of a download breaking,
-// treat the break as network-caused even when Firefox blames "USER_CANCELED".
-const OFFLINE_GRACE_SECONDS = 90;
-
-// When we genuinely cannot tell, what do we assume?
-//   true  = assume YOU cancelled it, leave it alone.
-//           Safe. Might ignore a real failure if your router stayed up but
-//           your internet didn't (we'd never have seen an "offline" moment).
-//   false = assume the NETWORK did it, retry it.
-//           Aggressive. Will fight you when you cancel a download by hand.
-const ASSUME_USER_CANCELED_IS_REAL = true;
-
-// Resume downloads Firefox has put into a paused state, when the pause looks
-// network-caused. A pause you did yourself, while online, is always respected.
-const RESUME_NETWORK_PAUSES = true;
-
-/* ---- restarting downloads that cannot be resumed ---- */
-
-// Restart from scratch when a download cannot be resumed?
-// (This re-downloads from 0 bytes. See MAX_RESTART_SIZE_MB below.)
-const RESTART_WHEN_CANNOT_RESUME = true;
-
-// How many times a single URL may be restarted from scratch before we give up.
-const MAX_RESTARTS = 3;
-
-// Refuse to auto-restart files bigger than this, in megabytes.
-// 0 means "no limit". 5000 means "don't auto-restart anything over ~5 GB".
-// Strongly recommended to keep a real number here — a restarted 20 GB download
-// re-downloads all 20 GB.
-const MAX_RESTART_SIZE_MB = 5000;
-
-// What to do if the restarted file clashes with an existing filename.
-// "uniquify" = save as name(1).zip (never destroys anything)
-// "overwrite" = replace the old file
-const RESTART_CONFLICT_ACTION = "uniquify";
-
-/* ---- giving up ---- */
-
-// true  = cancel the download once we give up (frees the partial file).
-// false = just stop retrying and leave it there so you can retry by hand.
-const CANCEL_WHEN_GIVING_UP = true;
-
-// Show a desktop notification when we give up on a download.
-const SHOW_NOTIFICATIONS = true;
-
-// How often the extension wakes up to check on stopped downloads, in minutes.
-// 0.5 = every 30 seconds. THIS IS THE REAL SAFETY NET — the background page
-// gets suspended when idle, and only a real WebExtension event (like this
-// alarm) can wake it back up.
-const CHECK_EVERY_MINUTES = 0.5;
+// Start with the defaults; loadSettings() swaps in the user's saved choices.
+let settings = Object.assign({}, DEFAULT_SETTINGS);
 
 /* ============================================================
    From here down is the machinery. You shouldn't need to edit it.
@@ -121,6 +56,33 @@ const STATE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 function log(...args) {
   console.log("[auto-resume]", ...args);
 }
+
+/* ---------- loading settings ----------------------------------------------- */
+
+// (Re)create the wake-up alarm using the current check interval. Creating an
+// alarm with the same name replaces the old one.
+function startAlarm() {
+  browser.alarms.create(ALARM_NAME, {
+    periodInMinutes: Math.max(0.5, settings.CHECK_EVERY_MINUTES)
+  });
+}
+
+async function loadSettings() {
+  try {
+    const stored = await browser.storage.local.get(SETTINGS_KEY);
+    settings = cleanSettings(stored[SETTINGS_KEY]).settings;
+  } catch (err) {
+    log("could not load settings, using defaults:", err);
+  }
+  startAlarm();
+}
+
+// Reading storage takes a moment, but the background page is an "event page":
+// Firefox may wake it up JUST to deliver one event, and the listeners must be
+// registered straight away (not after an await) or that event is lost.
+// So listeners are registered at the bottom of this file as usual, and each one
+// waits for this promise before it looks at any setting.
+const settingsReady = loadSettings();
 
 /* ---------- saved state --------------------------------------------------- */
 
@@ -192,7 +154,7 @@ function displayName(item) {
 }
 
 async function notify(title, message) {
-  if (!SHOW_NOTIFICATIONS) return;
+  if (!settings.SHOW_NOTIFICATIONS) return;
   try {
     await browser.notifications.create({ type: "basic", title, message });
   } catch (err) {
@@ -202,8 +164,8 @@ async function notify(title, message) {
 
 function delayForAttempt(attemptNumber) {
   const seconds =
-    FIRST_RETRY_SECONDS * Math.pow(BACKOFF_MULTIPLIER, Math.max(0, attemptNumber - 1));
-  return Math.min(seconds, MAX_RETRY_DELAY_SECONDS) * 1000;
+    settings.FIRST_RETRY_SECONDS * Math.pow(settings.BACKOFF_MULTIPLIER, Math.max(0, attemptNumber - 1));
+  return Math.min(seconds, settings.MAX_RETRY_DELAY_SECONDS) * 1000;
 }
 
 // Is this download stopped in a way we might care about?
@@ -241,13 +203,13 @@ function classify(item, opts) {
 
   if (error === "USER_CANCELED") {
     if (networkBlamed) return "network";
-    return ASSUME_USER_CANCELED_IS_REAL ? "user-canceled" : "network";
+    return settings.ASSUME_USER_CANCELED_IS_REAL ? "user-canceled" : "network";
   }
 
   if (NETWORK_ERRORS.has(error)) return "network";
 
   if (item.paused === true) {
-    if (RESUME_NETWORK_PAUSES && networkBlamed) return "network";
+    if (settings.RESUME_NETWORK_PAUSES && networkBlamed) return "network";
     return "user-paused";
   }
 
@@ -260,7 +222,7 @@ function classify(item, opts) {
 async function giveUp(item, reason) {
   log(`giving up on #${item.id} (${displayName(item)}): ${reason}`);
 
-  if (CANCEL_WHEN_GIVING_UP) {
+  if (settings.CANCEL_WHEN_GIVING_UP) {
     try {
       await browser.downloads.cancel(item.id);
     } catch (err) {
@@ -274,7 +236,7 @@ async function giveUp(item, reason) {
 /* ---------- restarting from scratch --------------------------------------- */
 
 async function restartFromScratch(item, state) {
-  if (!RESTART_WHEN_CANNOT_RESUME) {
+  if (!settings.RESTART_WHEN_CANNOT_RESUME) {
     await giveUp(item, "this download cannot be resumed");
     return;
   }
@@ -286,11 +248,11 @@ async function restartFromScratch(item, state) {
 
   const sizeMB = item.totalBytes > 0 ? Math.round(item.totalBytes / (1024 * 1024)) : -1;
 
-  if (MAX_RESTART_SIZE_MB > 0 && item.totalBytes > MAX_RESTART_SIZE_MB * 1024 * 1024) {
+  if (settings.MAX_RESTART_SIZE_MB > 0 && item.totalBytes > settings.MAX_RESTART_SIZE_MB * 1024 * 1024) {
     state[item.id] = touch({ respectUser: true, announced: true, why: "too big to auto-restart" });
     log(
       `#${item.id} (${displayName(item)}) cannot be resumed and is ${sizeMB} MB — ` +
-      `over the ${MAX_RESTART_SIZE_MB} MB auto-restart limit. Leaving it for you to decide.`
+      `over the ${settings.MAX_RESTART_SIZE_MB} MB auto-restart limit. Leaving it for you to decide.`
     );
     await notify(
       "Download needs your attention",
@@ -302,9 +264,9 @@ async function restartFromScratch(item, state) {
   const urlKey = "url:" + item.url;
   const record = state[urlKey] || { restarts: 0 };
 
-  if (record.restarts >= MAX_RESTARTS) {
+  if (record.restarts >= settings.MAX_RESTARTS) {
     delete state[urlKey];
-    await giveUp(item, `restarted ${MAX_RESTARTS} times and still failing`);
+    await giveUp(item, `restarted ${settings.MAX_RESTARTS} times and still failing`);
     return;
   }
 
@@ -312,23 +274,23 @@ async function restartFromScratch(item, state) {
   state[urlKey] = touch(record);
   state[item.id] = touch({ abandoned: true });
 
-  const options = { url: item.url, conflictAction: RESTART_CONFLICT_ACTION };
+  const options = { url: item.url, conflictAction: settings.RESTART_CONFLICT_ACTION };
   const name = shortName(item);
   if (name) options.filename = name;
 
   try {
     const newId = await browser.downloads.download(options);
     log(
-      `restart ${record.restarts}/${MAX_RESTARTS} of "${displayName(item)}" ` +
+      `restart ${record.restarts}/${settings.MAX_RESTARTS} of "${displayName(item)}" ` +
       `from scratch — new download #${newId}`
     );
   } catch (err) {
     try {
       const newId = await browser.downloads.download({
         url: item.url,
-        conflictAction: RESTART_CONFLICT_ACTION
+        conflictAction: settings.RESTART_CONFLICT_ACTION
       });
-      log(`restart ${record.restarts}/${MAX_RESTARTS} of "${displayName(item)}" — new download #${newId}`);
+      log(`restart ${record.restarts}/${settings.MAX_RESTARTS} of "${displayName(item)}" — new download #${newId}`);
     } catch (err2) {
       log(`restart of "${displayName(item)}" failed:`, err2);
       await giveUp(item, "could not be restarted (the link may have expired)");
@@ -346,6 +308,7 @@ async function restartFromScratch(item, state) {
 /* ---------- the core routine ---------------------------------------------- */
 
 async function handleBroken(id, options) {
+  await settingsReady;
   const immediate = Boolean(options && options.immediate);
   const item = await getDownload(id);
 
@@ -366,7 +329,7 @@ async function handleBroken(id, options) {
 
   const online = await isOnline();
   const offlineAt = await lastOfflineAt();
-  const offlineRecently = Date.now() - offlineAt < OFFLINE_GRACE_SECONDS * 1000;
+  const offlineRecently = Date.now() - offlineAt < settings.OFFLINE_GRACE_SECONDS * 1000;
 
   const verdict = classify(item, { currentlyOffline: !online, offlineRecently: offlineRecently });
 
@@ -419,9 +382,9 @@ async function handleBroken(id, options) {
       return;
     }
 
-    if (entry.attempts >= MAX_ATTEMPTS) {
+    if (entry.attempts >= settings.MAX_ATTEMPTS) {
       delete state[id];
-      await giveUp(item, `failed ${MAX_ATTEMPTS} times in a row while online`);
+      await giveUp(item, `failed ${settings.MAX_ATTEMPTS} times in a row while online`);
       return;
     }
 
@@ -436,15 +399,15 @@ async function handleBroken(id, options) {
     entry.nextTryAt = now + wait;
     state[id] = touch(entry);
 
-    try {
-      await browser.downloads.resume(id);
-      log(
-        `attempt ${entry.attempts}/${MAX_ATTEMPTS} on #${id} (${displayName(item)}): accepted` +
-        ` — next attempt in ${Math.round(wait / 1000)}s if it breaks again`
-      );
-    } catch (err) {
-      log(`attempt ${entry.attempts}/${MAX_ATTEMPTS} on #${id} (${displayName(item)}): failed —`, err);
-    }
+    // Do NOT wait for resume() to answer. Firefox only answers when the download
+    // FINISHES or breaks again — possibly hours later. Waiting here would keep
+    // the state lock that whole time, and every other broken download would sit
+    // there un-rescued until this one was done.
+    const label = `attempt ${entry.attempts}/${settings.MAX_ATTEMPTS} on #${id} (${displayName(item)})`;
+    log(`${label}: resuming — next attempt in ${Math.round(wait / 1000)}s if it breaks again`);
+    browser.downloads.resume(id).catch((err) => {
+      log(`${label}: stopped again or was refused —`, err);
+    });
 
     if (wait <= 25000) {
       setTimeout(() => handleBroken(id), wait + 100);
@@ -543,14 +506,15 @@ self.showDownloads = showDownloads;
 
 /* ---------- event listeners ----------------------------------------------- */
 
-browser.downloads.onChanged.addListener((delta) => {
+browser.downloads.onChanged.addListener(async (delta) => {
+  await settingsReady;
   const brokeNow = delta.state && delta.state.current === "interrupted";
   const pausedNow = delta.paused && delta.paused.current === true;
 
   if (brokeNow || pausedNow) {
     setTimeout(() => {
       handleBroken(delta.id, { immediate: true });
-    }, FIRST_RETRY_SECONDS * 1000);
+    }, settings.FIRST_RETRY_SECONDS * 1000);
   }
 
   if (delta.state && delta.state.current === "complete") {
@@ -577,10 +541,11 @@ if (typeof browser.captivePortal !== "undefined") {
   );
 }
 
-browser.alarms.create(ALARM_NAME, { periodInMinutes: CHECK_EVERY_MINUTES });
+// The alarm itself is created by loadSettings() above, once we know the interval.
 
 browser.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name !== ALARM_NAME) return;
+  await settingsReady;
 
   await pruneOldEntries();
 
@@ -592,7 +557,7 @@ browser.alarms.onAlarm.addListener(async (alarm) => {
   // Just came back from being offline? Clear strikes first, then retry.
   if (online) {
     const offlineAt = await lastOfflineAt();
-    const gapMs = CHECK_EVERY_MINUTES * 60 * 1000 * 3;
+    const gapMs = settings.CHECK_EVERY_MINUTES * 60 * 1000 * 3;
     if (offlineAt > 0 && Date.now() - offlineAt < gapMs) {
       await onConnectivityRestored("sweep noticed we're back online");
       return;
@@ -604,4 +569,21 @@ browser.alarms.onAlarm.addListener(async (alarm) => {
   }
 });
 
-log("loaded (v3) — watching downloads. Online right now:", navigator.onLine);
+// The user pressed Save on the Options tab — use the new settings right away,
+// no reload needed. (This also fires for our own "autoResumeState" writes,
+// which we skip.)
+browser.storage.onChanged.addListener(async (changes, areaName) => {
+  if (areaName !== "local" || !changes[SETTINGS_KEY]) return;
+  await settingsReady;
+
+  const oldInterval = settings.CHECK_EVERY_MINUTES;
+  settings = cleanSettings(changes[SETTINGS_KEY].newValue).settings;
+  log("settings updated:", settings);
+
+  if (settings.CHECK_EVERY_MINUTES !== oldInterval) startAlarm();
+});
+
+log(
+  `loaded (v${browser.runtime.getManifest().version}) — watching downloads. Online right now:`,
+  navigator.onLine
+);

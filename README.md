@@ -28,28 +28,39 @@ Firefox restarts.
 
 ## Configuration
 
-There's no options UI. The settings are constants at the top of
-`background.js` — edit and reload the extension.
+Open the settings from Firefox's menu ☰ → **Add-ons and themes** (or type
+`about:addons` in the address bar) → **Download Auto-Resume** → **Options**
+tab. Change what you like and press **Save** — it takes effect straight away,
+no restart needed. **Restore defaults** puts everything back (press Save
+afterwards to keep it).
+
+The less common settings are under **Advanced** at the bottom of the page.
 
 | Setting | Default | What it does |
 | --- | --- | --- |
-| `FIRST_RETRY_SECONDS` | `1` | Wait before the first retry |
-| `BACKOFF_MULTIPLIER` | `2` | Each retry waits this much longer than the last |
-| `MAX_RETRY_DELAY_SECONDS` | `60` | Cap on the waiting time |
-| `MAX_ATTEMPTS` | `30` | Failures in a row (while online) before giving up |
-| `RESTART_WHEN_CANNOT_RESUME` | `true` | Restart from 0 bytes when resuming isn't possible |
-| `MAX_RESTART_SIZE_MB` | `5000` | Never auto-restart files bigger than this (`0` = no limit) |
-| `MAX_RESTARTS` | `3` | Restarts allowed per URL |
-| `CANCEL_WHEN_GIVING_UP` | `true` | Cancel the download once we give up |
-| `SHOW_NOTIFICATIONS` | `true` | Desktop notification when giving up |
-| `CHECK_EVERY_MINUTES` | `0.5` | How often to wake up and check stopped downloads |
+| Wait before the first retry | 1 s | Wait before the first retry |
+| Make each retry wait longer by | ×2 | Each retry waits this much longer than the last |
+| Never wait longer than | 60 s | Cap on the waiting time |
+| Give up after | 30 failures | Failures in a row (while online) before giving up |
+| Restart them from the beginning | on | Restart from 0 bytes when resuming isn't possible |
+| Restart the same file at most | 3 times | Restarts allowed per URL |
+| Don't restart files bigger than | 5000 MB | Never auto-restart files bigger than this (0 = no limit) |
+| Cancel the download | on | Cancel the download once we give up |
+| Show desktop notifications | on | Notify when giving up or when a download needs attention |
+| *Advanced:* assume I cancelled it if unsure | on | How to treat an ambiguous `USER_CANCELED` |
+| *Advanced:* blame the connection if it was down in the last | 90 s | Offline window for treating `USER_CANCELED` as a network failure |
+| *Advanced:* resume downloads Firefox paused because of the network | on | Resume network-caused pauses |
+| *Advanced:* check on stopped downloads every | 0.5 min | How often to wake up and check stopped downloads |
+| *Advanced:* if a restarted file's name is taken | new name | `file(1).zip`, or replace the existing file |
+
+The defaults live in `settings.js` if you're running from source.
 
 ## Permissions
 
 | Permission | Why |
 | --- | --- |
 | `downloads` | Watch downloads and resume or restart broken ones |
-| `storage` | Remember retry counts and timing |
+| `storage` | Remember retry counts, timing and your settings |
 | `alarms` | Wake the suspended background page to re-check downloads |
 | `notifications` | Tell you when a download is given up on |
 | `captivePortal` | Tell "you're offline" apart from "the download failed" |

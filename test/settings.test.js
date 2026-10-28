@@ -35,6 +35,22 @@ test("every setting has a rule, and every default passes its own rule", () => {
   assert.deepEqual(clean(DEFAULTS), { settings: DEFAULTS, problems: [] });
 });
 
+test("the slow-connection preset only uses real settings, all valid", () => {
+  const preset = plain(ext.run("SLOW_CONNECTION_PRESET"));
+  for (const name of Object.keys(preset)) {
+    assert.ok(name in DEFAULTS, `${name} is not a setting`);
+  }
+  const full = { ...DEFAULTS, ...preset };
+  assert.deepEqual(clean(full), { settings: full, problems: [] });
+});
+
+test("the slow-connection preset keeps partial files and limits big restarts", () => {
+  // The two choices that protect hours of slow downloading.
+  const preset = plain(ext.run("SLOW_CONNECTION_PRESET"));
+  assert.equal(preset.CANCEL_WHEN_GIVING_UP, false);
+  assert.ok(preset.MAX_RESTART_SIZE_MB > 0 && preset.MAX_RESTART_SIZE_MB < DEFAULTS.MAX_RESTART_SIZE_MB);
+});
+
 test("nothing saved yet gives the defaults, with no complaints", () => {
   for (const raw of [undefined, null, {}, "rubbish", 42]) {
     assert.deepEqual(clean(raw), { settings: DEFAULTS, problems: [] });

@@ -36,6 +36,13 @@ afterwards to keep it).
 
 The less common settings are under **Advanced** at the bottom of the page.
 
+**On a very slow or unstable connection** (e.g. dial-up), press **Use
+slow-connection settings** at the top of the Options page, then **Save**. It
+waits up to 5 minutes between tries, gives up only after about 7–8 hours with
+no progress at all, keeps the half-finished file instead of cancelling it, and
+won't restart files over 100 MB from scratch (that could take days on a slow
+line).
+
 | Setting | Default | What it does |
 | --- | --- | --- |
 | Wait before the first retry | 1 s | Wait before the first retry |

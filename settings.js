@@ -80,6 +80,30 @@ const DEFAULT_SETTINGS = {
   CHECK_EVERY_MINUTES: 0.5
 };
 
+// The "Slow / unstable connection" button on the Options page. Only the
+// settings listed here change; everything else goes back to its default.
+// Made for very slow lines (think dial-up: a 38 MB file takes hours) that drop often.
+const SLOW_CONNECTION_PRESET = {
+  // A redial takes a while — retrying after 1 second just wastes an attempt.
+  FIRST_RETRY_SECONDS: 5,
+  // Grow the wait more gently: 5s, 7.5s, 11s, 17s, 25s...
+  BACKOFF_MULTIPLIER: 1.5,
+  // ...up to 5 minutes between tries.
+  MAX_RETRY_DELAY_SECONDS: 300,
+  // The count resets whenever the download makes progress, so 100 in a row
+  // means roughly 7-8 hours of NO progress at all before giving up.
+  MAX_ATTEMPTS: 100,
+  // Catch more "USER_CANCELED" errors that were really the line dropping.
+  OFFLINE_GRACE_SECONDS: 300,
+  // Small files are cheap to restart a few more times...
+  MAX_RESTARTS: 5,
+  // ...but restarting a big file from 0 bytes on a slow line takes days.
+  MAX_RESTART_SIZE_MB: 100,
+  // Keep the partial file when giving up — it may hold hours of downloading,
+  // and you can still press retry on it later.
+  CANCEL_WHEN_GIVING_UP: false
+};
+
 // What counts as a valid value for each setting.
 //   number:  must be between min and max. whole: true = no decimals allowed.
 //   boolean: must be true or false (a tick box).

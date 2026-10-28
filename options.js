@@ -96,8 +96,16 @@ function restoreDefaults() {
   showStatus("Defaults filled in — press Save to keep them.", "");
 }
 
+// Fill in the slow-connection values (from settings.js). Settings the preset
+// doesn't mention go back to their defaults, so you always get the same result.
+function useSlowPreset() {
+  fillForm(Object.assign({}, DEFAULT_SETTINGS, SLOW_CONNECTION_PRESET));
+  showStatus("Slow-connection settings filled in — press Save to keep them.", "");
+}
+
 form.addEventListener("submit", save);
 document.getElementById("restore").addEventListener("click", restoreDefaults);
+document.getElementById("slow-preset").addEventListener("click", useSlowPreset);
 
 // Any edit clears the old "Saved ✓" so it's clear the change isn't saved yet.
 form.addEventListener("input", () => showStatus("Unsaved changes", ""));
